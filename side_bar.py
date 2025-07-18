@@ -1,12 +1,15 @@
 import streamlit as st
-from custom_pages.Technical_Specifications import render as render_tech
 from huggingface_hub import upload_file, create_repo
 import tempfile
 from pathlib import Path
 import json
 import utils
 from middleMan import parse_into_jinja_markdown as pj
-
+from custom_pages.card_metadata import card_metadata_render
+from custom_pages.model_basic_information import model_basic_information_render
+from custom_pages.technical_specifications import technical_specifications_render
+from custom_pages.evaluation_data_mrc import evaluation_data_mrc_render
+from custom_pages.warnings import warnings_render
 
 model_card_schema = utils.get_model_card_schema()
 
@@ -36,13 +39,36 @@ def save_uploadedfile(uploadedfile):
 
 def sidebar_render():
     with st.sidebar:
+        task = st.session_state.get("task", "Image-to-Image translation")
 
         st.markdown("## 🔀 Navigate")
 
-        if st.button("1. Technical Specification"):
-            st.session_state.runpage = render_tech
+        if st.button("📝 Card Metadata"):
+            st.session_state.runpage = card_metadata_render
             st.rerun()
-           
+        
+        if st.button("🧠 Model Basic Information"):
+            st.session_state.runpage = model_basic_information_render
+            st.rerun()
+        
+        if st.button("🔎 Technical Specifications"):
+            st.session_state.runpage = technical_specifications_render
+            st.rerun()
+        
+        if st.button("🔬 Evaluation Data Methodology, Results & Commissioning"):
+            st.session_state.runpage = evaluation_data_mrc_render
+            st.rerun()
+
+
+        missing_required = utils.validate_required_fields(
+            model_card_schema, st.session_state, current_task=task
+        )
+
+        if missing_required:
+            if st.button("⚠️ Warnings"):
+                st.session_state.runpage = warnings_render
+                st.rerun()
+            
 
         st.markdown("## Upload Model Card")
         uploaded_file = st.file_uploader(
@@ -88,7 +114,7 @@ def sidebar_render():
         if "show_download" not in st.session_state:
             st.session_state.show_download = False
 
-        st.markdown("## Download Model Card")
+        st.markdown("## Download Model Card `.md`")
         with st.form("Download model card form"):
             download_submit = st.form_submit_button("📥 Download Model Card")
             if download_submit:
@@ -113,3 +139,27 @@ def sidebar_render():
                 file_name="model_card.md",
                 mime="text/markdown",
             )
+        
+        for key, value in {
+            "model_name": "",
+            "license": "",
+            "markdown_upload": "current_card.md",
+        }.items():
+            st.session_state.setdefault(key, value)
+
+        st.markdown("## Download Model Card `.json`")
+        with st.form("Download model card json"):
+            download_submit = st.form_submit_button("📥 Download Model Card")
+            if download_submit:
+                task = st.session_state.get("task")
+                missing_required = utils.validate_required_fields(
+                    model_card_schema, st.session_state, current_task=task
+                )
+                if missing_required:
+                    st.session_state.show_download = False
+                    st.error(
+                        "The following required fields are missing:\n\n"
+                        + "\n".join([f"- {field}" for field in missing_required])
+                    )
+                else:
+                    st.session_state.show_download = True
